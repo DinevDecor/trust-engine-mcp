@@ -1,0 +1,4 @@
+id,input,expected,grader,tolerance,fields,important,notes
+t01,"Extract the invoice total in EUR from: 'Invoice 4471. Subtotal 120.00 EUR, VAT 24.00 EUR, Total 144.00 EUR.'",144,number,0.001,,no,example row: delete
+t02,"Classify the support ticket as billing, bug or feature: 'I was charged twice this month.'",billing,contains,,,no,example row: delete
+t03,"Return JSON with city and country for: 'Ship to 12 Rue Lafayette, Paris, France.'","{""city"": ""Paris"", ""country"": ""France""}",json_fields,,city;country,yes,example row: delete

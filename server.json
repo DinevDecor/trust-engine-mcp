@@ -1,0 +1,34 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.DinevDecor/trust-engine-mcp",
+  "title": "Trust Engine AI: model retirements and agent cost",
+  "description": "Model retirement dates with sources, public cost-vs-quality benchmark, local usage-cost check. Free.",
+  "repository": {
+    "url": "https://github.com/DinevDecor/trust-engine-mcp",
+    "source": "github"
+  },
+  "websiteUrl": "https://agenttrustapi.com",
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "trust-engine-mcp",
+      "version": "0.1.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "TRUST_ENGINE_OFFLINE",
+          "description": "Set to 1 to never fetch and use only the bundled data snapshot.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string",
+          "default": "0"
+        }
+      ]
+    }
+  ]
+}

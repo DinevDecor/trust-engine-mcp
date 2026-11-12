@@ -1,0 +1,4 @@
+[
+ {"Model": "claude-opus-4-1-20250805", "Requests": 100, "uncached_input_tokens": 3000000, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0, "output_tokens": 50000, "error_count": 5, "Cost (USD)": "$48.75", "date": "2026-11-01"},
+ {"Model": "claude-sonnet-4-5-20250929", "Requests": 200, "uncached_input_tokens": 200000, "cache_read_input_tokens": 800000, "cache_creation_input_tokens": 20000, "output_tokens": 100000, "error_count": 0, "Cost (USD)": "$2.46", "date": "2026-11-02"}
+]

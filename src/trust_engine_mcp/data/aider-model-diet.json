@@ -1,0 +1,193 @@
+{
+ "name": "Model diet for a coding agent (Aider): Opus vs Sonnet vs Haiku 5.5",
+ "publisher": {
+  "name": "Trust Engine AI",
+  "url": "https://agenttrustapi.com/",
+  "email": "hello@agenttrustapi.com"
+ },
+ "date": "2026-11-11",
+ "report_url": "https://agenttrustapi.com/reports/model-diet-aider/",
+ "method_url": "https://agenttrustapi.com/reports/model-diet-aider/protocol.md",
+ "raw_data_url": "https://agenttrustapi.com/reports/model-diet-aider/results.csv",
+ "agent": "Aider 0.86.2, default settings per model",
+ "exam": "Aider polyglot benchmark, Python part; hidden tests; one attempt plus one retry with the test output",
+ "exercises_in_analysis": 27,
+ "exercises_planned": 34,
+ "solved_means": "all hidden tests pass after at most one retry (pass@2)",
+ "cost_method": "tokens x list price, read from the agent's own output; not yet reconciled with the invoice",
+ "models": [
+  {
+   "model": "claude-haiku-5-5",
+   "name": "Claude Haiku 5.5",
+   "exercises": 27,
+   "solved_first_try": 15,
+   "solved": 22,
+   "total_cost_usd": 0.2023,
+   "cost_per_exercise_usd": 0.0075,
+   "cost_per_solved_usd": 0.0092,
+   "median_seconds": 30.2,
+   "failed": [
+    "dot-dsl",
+    "forth",
+    "hangman",
+    "paasio",
+    "rest-api"
+   ],
+   "list_price_usd_per_mtok": {
+    "input": 0.1,
+    "output": 0.5
+   }
+  },
+  {
+   "model": "claude-sonnet-5-5",
+   "name": "Claude Sonnet 5.5",
+   "exercises": 27,
+   "solved_first_try": 25,
+   "solved": 26,
+   "total_cost_usd": 3.9499,
+   "cost_per_exercise_usd": 0.1463,
+   "cost_per_solved_usd": 0.1519,
+   "median_seconds": 27.4,
+   "failed": [
+    "paasio"
+   ],
+   "list_price_usd_per_mtok": {
+    "input": 2,
+    "output": 10
+   }
+  },
+  {
+   "model": "claude-opus-5-5",
+   "name": "Claude Opus 5.5",
+   "exercises": 27,
+   "solved_first_try": 26,
+   "solved": 26,
+   "total_cost_usd": 7.7078,
+   "cost_per_exercise_usd": 0.2855,
+   "cost_per_solved_usd": 0.2965,
+   "median_seconds": 33.1,
+   "failed": [
+    "paasio"
+   ],
+   "list_price_usd_per_mtok": {
+    "input": 4,
+    "output": 20
+   }
+  }
+ ],
+ "pairs": [
+  {
+   "from": "claude-haiku-5-5",
+   "to": "claude-sonnet-5-5",
+   "cost_per_solved_ratio": 16.5109,
+   "change_pct": 1551.1,
+   "solved_from": 22,
+   "solved_to": 26,
+   "lost_tasks": [],
+   "gained_tasks": [
+    "dot-dsl",
+    "forth",
+    "hangman",
+    "rest-api"
+   ]
+  },
+  {
+   "from": "claude-haiku-5-5",
+   "to": "claude-opus-5-5",
+   "cost_per_solved_ratio": 32.2283,
+   "change_pct": 3122.8,
+   "solved_from": 22,
+   "solved_to": 26,
+   "lost_tasks": [],
+   "gained_tasks": [
+    "dot-dsl",
+    "forth",
+    "hangman",
+    "rest-api"
+   ]
+  },
+  {
+   "from": "claude-sonnet-5-5",
+   "to": "claude-haiku-5-5",
+   "cost_per_solved_ratio": 0.0606,
+   "change_pct": -93.9,
+   "solved_from": 26,
+   "solved_to": 22,
+   "lost_tasks": [
+    "dot-dsl",
+    "forth",
+    "hangman",
+    "rest-api"
+   ],
+   "gained_tasks": []
+  },
+  {
+   "from": "claude-sonnet-5-5",
+   "to": "claude-opus-5-5",
+   "cost_per_solved_ratio": 1.9519,
+   "change_pct": 95.2,
+   "solved_from": 26,
+   "solved_to": 26,
+   "lost_tasks": [],
+   "gained_tasks": []
+  },
+  {
+   "from": "claude-opus-5-5",
+   "to": "claude-haiku-5-5",
+   "cost_per_solved_ratio": 0.031,
+   "change_pct": -96.9,
+   "solved_from": 26,
+   "solved_to": 22,
+   "lost_tasks": [
+    "dot-dsl",
+    "forth",
+    "hangman",
+    "rest-api"
+   ],
+   "gained_tasks": []
+  },
+  {
+   "from": "claude-opus-5-5",
+   "to": "claude-sonnet-5-5",
+   "cost_per_solved_ratio": 0.5123,
+   "change_pct": -48.8,
+   "solved_from": 26,
+   "solved_to": 26,
+   "lost_tasks": [],
+   "gained_tasks": []
+  }
+ ],
+ "haiku_losses": [
+  {
+   "exercise": "forth",
+   "what": "a small language interpreter: arithmetic and division-by-zero handling",
+   "failing_tests": 11,
+   "tests": 54
+  },
+  {
+   "exercise": "rest-api",
+   "what": "a small REST API: balances between users",
+   "failing_tests": 8,
+   "tests": 9
+  },
+  {
+   "exercise": "dot-dsl",
+   "what": "a graph parser: errors for malformed input",
+   "failing_tests": 3,
+   "tests": 12
+  },
+  {
+   "exercise": "hangman",
+   "what": "a word game: the same correct letter twice counts as a miss",
+   "failing_tests": 1,
+   "tests": 7
+  }
+ ],
+ "limits": [
+  "One agent, one language, 27 of 34 exercises (API credits ran out mid-run; every exercise that finished for all three models is reported).",
+  "Public benchmark: models may have seen it. Comparing models is fair; absolute rates are not a forecast.",
+  "The agent fetched some web pages named in the exercises, which the protocol did not allow.",
+  "Costs are estimates from token counts.",
+  "One public benchmark, not your tasks: a pilot on 20-30 of your own tasks measures what matters to you."
+ ]
+}

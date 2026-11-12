@@ -1,0 +1,5 @@
+id,input,expected,grader,tolerance,fields,important,notes
+t01,"Extract the total from: 'Total 144.00 EUR'",144,number,0.01,,no,
+t02,"Extract the total from: 'Total: n/a'",n/a,number,,,no,
+t03,"Who should get the refund notice? 'Please write to ann@example.com'",ann@example.com,exact,,,yes,
+t04,"Return JSON with city: 'Ship to Paris'","{""city"": ""Paris""}",json_fields,,city,no,

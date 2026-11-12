@@ -1,0 +1,5 @@
+start_time,model,num_model_requests,input_tokens,input_cached_tokens,output_tokens,cost_usd,service_tier
+2026-10-01,gpt-4o-2024-08-06,500,6000000,500000,150000,17.50,default
+2026-10-02,gpt-4o-2024-08-06,500,6000000,500000,150000,17.50,default
+2026-10-01,gpt-4o-mini-2024-07-18,1000,500000,0,100000,0.135,default
+2026-10-02,gpt-4o-mini-2024-07-18,1000,500000,0,100000,0.135,default
