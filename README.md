@@ -2,6 +2,9 @@
 
 Free MCP server from [Trust Engine AI](https://agenttrustapi.com). It answers questions agents otherwise search the web for:
 
+- **Which AI models does this code use, and are any being retired?** `scan_for_models` finds the model ids in the
+  working directory (read-only, on your machine) and checks them against the calendar. The same scan runs as a
+  command (`trust-engine-mcp check`) and as a GitHub Action, without an agent.
 - **Is a model we use being retired, and when?** Verified dates for Anthropic, OpenAI, Google Gemini API and Vertex AI,
   AWS Bedrock and Mistral. Each date has its official source URL and the date it was checked.
 - **Why do our agents cost so much?** It reads an OpenAI or Anthropic usage/cost export **locally** and shows spend by
@@ -9,7 +12,9 @@ Free MCP server from [Trust Engine AI](https://agenttrustapi.com). It answers qu
 - **Is a cheaper model good enough?** You get our public benchmark numbers, a savings estimate for the model pairs we
   measured, and a ready request for a free pilot on your own tasks.
 
-Read-only. No key, no account, no telemetry. The server only sends GET requests to `agenttrustapi.com`.
+Read-only. No key, no account, no telemetry. The server only sends GET requests to `agenttrustapi.com`, with the
+User-Agent `trust-engine-mcp/<version> (mcp|cli|action)` so we can count use per channel; links to agenttrustapi.com
+in answers carry `?ref=mcp`, `?ref=cli` or `?ref=action` for the same reason. Nothing else is recorded or sent.
 
 > **Honesty notes.** The retirement data is copied from vendor pages, so follow `source_url` before you act on a date.
 > The benchmark is one coding agent on 27 public exercises: it compares the models fairly, but it does not predict
@@ -43,6 +48,8 @@ Without uv, run `pip install trust-engine-mcp` and use the command `trust-engine
 
 ## Try this first
 
+> Are we using any deprecated AI models in this repo?
+
 > Use the trust-engine tools. We use claude-sonnet-4-5, gpt-4o and gemini-2.5-flash. Which of them are being
 > retired, on which platform, and by when must we re-test? Cite the sources.
 
@@ -55,7 +62,8 @@ Without uv, run `pip install trust-engine-mcp` and use the command `trust-engine
 
 | Tool | Answers |
 |---|---|
-| `check_my_models(models)` | For each model your agent uses: retirement date per platform, days left, the vendor's replacement, the source, and the next step ("re-test before ...") |
+| `scan_for_models(path?, texts?)` | Finds every model id from the calendar in the working directory (or in `texts` you pass) as a whole token, with `file:line` for each, plus the `check_my_models` result for those models. `path` must be inside the working directory. Limits: 2,000 files / 5 MB. Skips `.git`, `node_modules`, `venv`, `.venv`, `dist`, `build`, `__pycache__`, lockfiles and binaries. Never opens `.env` or `.env.*` (only `.env.example`, `.env.sample`, `.env.template`); skipped ones are listed by name |
+| `check_my_models(models)` | For each model your agent uses: retirement date per platform, days left, the vendor's replacement, the source, and what to do before the date |
 | `model_retirements(provider?, model?, before_date?, include_past?, text_models_only?)` | Upcoming retirements and deprecations, filtered, with sources |
 | `analyze_usage(csv_text? \| rows?)` | Spend by model, top-model share, models on the retirement calendar, cost drivers, next steps. Runs offline; nothing is uploaded |
 | `benchmark_results()` | Public Aider benchmark for Claude Opus, Sonnet and Haiku 5.5: tasks solved, cost per solved task, failed tasks, method and raw data |
@@ -63,6 +71,50 @@ Without uv, run `pip install trust-engine-mcp` and use the command `trust-engine
 | `prepare_pilot_tasks(csv_text?, use_case?)` | The pilot task format (CSV template), how to pick 20-30 tasks, how to mask personal data, and an offline check of a draft |
 | `request_pilot(company?, use_case?, models?, task_count?, monthly_bill_usd?, notes?)` | A draft e-mail and `mailto:` link to hello@agenttrustapi.com for a person to send |
 | `pricing()` | Published prices (US$, valid from 12 Nov 2026), incl. the fixed-price 7-day test ($1,390), 24/7 watch and Bulgarian review |
+
+What the scan does not see: model ids built at runtime (from environment variables or string concatenation), models
+that are not on the calendar, and ids written in a form the calendar does not list. Aliases such as `gpt-4.1` match
+the dated snapshot on the calendar (`gpt-4.1-2025-04-14`); the answer says so, because an alias can point to a newer
+snapshot.
+
+## Check a repository without an agent
+
+### Command line
+
+```bash
+uvx trust-engine-mcp check            # scan the current folder
+uvx trust-engine-mcp check src --days 90
+```
+
+It prints each model found, its dates, replacement and source, and where it is used. Exit code `1` if a model found
+retires within `--days` days (default 60; a date that has already passed counts), otherwise `0`.
+`trust-engine-mcp` with no arguments still starts the MCP server.
+
+### GitHub Action
+
+```yaml
+# .github/workflows/model-retirements.yml
+name: model retirements
+on:
+  pull_request:
+  schedule:
+    - cron: "17 6 * * 1"   # Mondays
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DinevDecor/trust-engine-mcp/check@v1
+        with:
+          days: "60"                  # default 60
+          # path: "."                 # default: the whole repository
+          # fail-on-retiring: "true"  # default false: warnings only
+```
+
+It adds a warning on each line that uses a model retiring within `days` and a table to the job summary. It needs no
+token and posts no comments. By default the step never fails; set `fail-on-retiring: "true"` to fail it.
 
 ### Usage exports `analyze_usage` reads
 

@@ -1,0 +1,49 @@
+name: "AI model retirement check (trust-engine-mcp)"
+description: "Finds the AI model ids in your code and warns when one is being retired, with the date, replacement and source. Read-only, no token."
+author: "Trust Engine AI"
+branding:
+  icon: "clock"
+  color: "orange"
+inputs:
+  path:
+    description: "File or folder to scan, relative to the workspace."
+    required: false
+    default: "."
+  days:
+    description: "Flag models that retire within this many days (a date that has already passed counts too)."
+    required: false
+    default: "60"
+  fail-on-retiring:
+    description: "true: fail the step when a flagged model is found. false (default): warnings and job summary only."
+    required: false
+    default: "false"
+runs:
+  using: "composite"
+  steps:
+    - id: python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        update-environment: false
+    - name: Scan for retiring AI models
+      shell: bash
+      env:
+        TE_PATH: ${{ inputs.path }}
+        TE_DAYS: ${{ inputs.days }}
+        TE_FAIL: ${{ inputs.fail-on-retiring }}
+        TE_VERSION: "0.2.0"
+        PIPX_DEFAULT_PYTHON: ${{ steps.python.outputs.python-path }}
+      run: |
+        set +e
+        pipx run --spec "trust-engine-mcp==${TE_VERSION}" trust-engine-mcp check "$TE_PATH" --days "$TE_DAYS"
+        code=$?
+        set -e
+        if [ "$code" = "0" ] || [ "$TE_FAIL" = "true" ]; then
+          exit "$code"
+        fi
+        if [ "$code" = "1" ]; then
+          echo "Retiring models found: warnings only (set fail-on-retiring: true to fail the step)."
+        else
+          echo "::warning::trust-engine-mcp check could not run (exit $code); see the log above."
+        fi
+        exit 0
