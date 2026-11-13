@@ -53,8 +53,8 @@ PILOT_HINT = (
     "Use request_pilot to draft the request and prepare_pilot_tasks for the task file."
 )
 COVERAGE_NOTE = (
-    "Calendar covers Anthropic (Claude API), OpenAI, Google Gemini API and Vertex AI, AWS Bedrock and "
-    "Mistral. Not covered: Azure OpenAI, Claude on Google-managed Vertex."
+    "Calendar covers Anthropic (Claude API), OpenAI, Azure OpenAI, Google Gemini API and Vertex AI, AWS Bedrock "
+    "and Mistral. Not covered: Claude on Google-managed Vertex."
 )
 
 PRICING = {
