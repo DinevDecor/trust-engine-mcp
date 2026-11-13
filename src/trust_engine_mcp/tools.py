@@ -5,11 +5,47 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from datetime import date, datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from trust_engine_mcp import models as mm
-from trust_engine_mcp import pilot, usage
-from trust_engine_mcp.data import BENCHMARK_PATH, RETIREMENTS_PATH, DataSource
+from trust_engine_mcp import pilot, scan, usage
+from trust_engine_mcp.data import BENCHMARK_PATH, CHANNELS, RETIREMENTS_PATH, DataSource
+
+SEVEN_DAY_TEST_URL = "https://agenttrustapi.com/seven-day-test/"
+_SITE_URL = re.compile(r"https://agenttrustapi\.com(?:/[^\s\"'<>()\[\]{}]*)?")
+
+
+def next_step_line(ref: str) -> str:
+    """The one next step that ends every answer with a retiring model (G3 of the retirement-checker spec)."""
+    return (
+        "Same code, different model, different answers. Test the replacement on 20\u201330 of your own tasks "
+        f"before the date: free pilot or the fixed 7-day test \u2192 {SEVEN_DAY_TEST_URL}?ref={ref}"
+    )
+
+
+def _ref_url(url: str, ref: str) -> str:
+    tail = ""
+    while url and url[-1] in ".,;:!?":  # sentence punctuation after a link
+        url, tail = url[:-1], url[-1] + tail
+    if re.search(r"[?&]ref=", url):
+        return url + tail
+    base, hash_, frag = url.partition("#")
+    if base == "https://agenttrustapi.com":
+        base += "/"
+    return f"{base}{'&' if '?' in base else '?'}ref={ref}{hash_}{frag}{tail}"
+
+
+def with_ref(obj: Any, ref: str) -> Any:
+    """Copy of an answer with ?ref=<channel> on every agenttrustapi.com link (G4). Nothing else changes."""
+    if isinstance(obj, str):
+        return _SITE_URL.sub(lambda m: _ref_url(m.group(0), ref), obj) if "agenttrustapi.com" in obj else obj
+    if isinstance(obj, dict):
+        return {k: with_ref(v, ref) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [with_ref(v, ref) for v in obj]
+    return obj
+
 
 PILOT_HINT = (
     "Free pilot: Trust Engine AI runs 20-30 of your own tasks on your current model and on cheaper setups "
@@ -125,6 +161,9 @@ class TrustEngineTools:
     def __init__(self, source: DataSource, today: Callable[[], date] | None = None) -> None:
         self.source = source
         self._today = today or (lambda: datetime.now(timezone.utc).date())
+        ch = getattr(source.settings, "channel", "mcp")
+        self.channel = ch if ch in CHANNELS else "mcp"
+        self._matcher: tuple[int, re.Pattern[str]] | None = None
 
     # --- retirements -------------------------------------------------------------------------------------------
     def _calendar(self) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
@@ -194,6 +233,16 @@ class TrustEngineTools:
         }
 
     def check_my_models(self, models: list[str]) -> dict[str, Any]:
+        return self._finish(self._check(models))
+
+    def _finish(self, out: dict[str, Any]) -> dict[str, Any]:
+        """An answer with a retiring model ends with exactly one next step; others keep the pilot hint."""
+        if out.pop("_retiring", False):
+            out.pop("re_test_help", None)
+            out["next_step"] = next_step_line(self.channel)
+        return out
+
+    def _check(self, models: list[str]) -> dict[str, Any]:
         if not models:
             raise ToolFailure("Pass the model ids or names your agent uses, e.g. ['claude-sonnet-4-5', 'gpt-4o'].")
         events, meta, prov = self._calendar()
@@ -238,7 +287,7 @@ class TrustEngineTools:
                     "Matched a dated snapshot of the name you gave. If your code pins a different snapshot or "
                     "uses the alias, check which one the alias points to."
                 )
-            results.append({"model": name, "status": status, "next_step": step, "match_note": note, "events": evs})
+            results.append({"model": name, "status": status, "action": step, "match_note": note, "events": evs})
         return {
             "today": self._today().isoformat(),
             "results": results,
@@ -246,7 +295,74 @@ class TrustEngineTools:
             "data": prov,
             "coverage": COVERAGE_NOTE,
             "re_test_help": PILOT_HINT,
+            "_retiring": any(r["status"] == "retiring" for r in results),
         }
+
+    # --- scan ----------------------------------------------------------------------------------------------------
+    def _rx(self, events: list[dict[str, Any]]) -> re.Pattern[str]:
+        key = hash(tuple(m for e in events for m in (e.get("model_ids") or [])))
+        if not self._matcher or self._matcher[0] != key:
+            self._matcher = (key, scan.compile_matcher(events))
+        return self._matcher[1]
+
+    def scan_for_models(
+        self,
+        path: str | None = None,
+        texts: list[dict[str, Any]] | None = None,
+        base: Path | None = None,
+        allow_outside: bool = False,
+    ) -> dict[str, Any]:
+        """Scan ``path`` (inside ``base``, default the working directory) or ``texts``; read-only, local."""
+        events, _, _ = self._calendar()
+        rx = self._rx(events)
+        base = (base or Path.cwd()).resolve()
+        try:
+            if texts is not None:
+                res = scan.scan_texts(rx, texts)
+            else:
+                if allow_outside:
+                    target = (base / (path or ".")).resolve()
+                    if not target.exists():
+                        raise scan.ScanRefused(f"path not found: {path!r}")
+                    if target != base and base not in target.parents:
+                        base = target if target.is_dir() else target.parent
+                else:
+                    target = scan.resolve_inside(path, base)
+                res = scan.scan_path(rx, target, base)
+        except scan.ScanRefused as exc:
+            raise ToolFailure(str(exc)) from None
+        names = sorted(res.hits)
+        out: dict[str, Any] = {
+            "today": self._today().isoformat(),
+            "scanned": res.summary(),
+            "privacy": "Read locally, read-only. No file content was uploaded or sent anywhere; only the public "
+            "retirement calendar was read. .env files were not opened.",
+        }
+        if not names:
+            out["found"] = []
+            out["meaning"] = (
+                "No model id from the retirement calendar was found as a whole token. Models that are not on the "
+                "calendar, or ids built at runtime (e.g. from environment variables), are not detected."
+            )
+            return out
+        check = self._check(names[:100])
+        status = {r["model"]: r["status"] for r in check["results"]}
+        out["found"] = [
+            {
+                "model": m,
+                "status": status.get(m, "not checked (over 100 models)"),
+                "locations": res.hits[m][: scan.MAX_LOCATIONS],
+                "locations_total": len(res.hits[m]),
+            }
+            for m in names
+        ]
+        retiring = check.pop("_retiring")
+        check.pop("re_test_help", None)
+        out["check_my_models"] = check
+        out["_retiring"] = retiring
+        if not retiring:
+            out["re_test_help"] = PILOT_HINT
+        return self._finish(out)
 
     # --- benchmark ---------------------------------------------------------------------------------------------
     def benchmark_results(self) -> dict[str, Any]:
@@ -336,12 +452,12 @@ class TrustEngineTools:
             )
         names = [r["model"] for r in result["by_model"]]
         try:
-            check = self.check_my_models(names)
+            check = self._check(names)
             on_calendar = [
                 {
                     "model": r["model"],
                     "status": r["status"],
-                    "next_step": r["next_step"],
+                    "next_step": r["action"],
                     "dates": [
                         {
                             "platform": e["platform"],

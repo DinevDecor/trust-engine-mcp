@@ -4,6 +4,8 @@ Answers, without web searching: when will the models my agent uses be retired; w
 diet" benchmark measure; what would switching between measured models save; why do my agents cost so much (from a
 usage export, analysed locally); how to prepare and request a free pilot; what the services cost.
 
+``trust-engine-mcp check [path]`` runs the same model scan as a CLI (see ``cli.py``); no arguments starts the server.
+
 Network: only GET https://agenttrustapi.com/retirements.json and /benchmarks/aider-model-diet.json
 (``TRUST_ENGINE_BASE_URL`` to override), 10 s timeout, cached for 6 hours, bundled snapshot as fallback.
 No telemetry, no keys, no uploads; nothing is sent by e-mail.
@@ -11,11 +13,12 @@ No telemetry, no keys, no uploads; nothing is sent by e-mail.
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable
 from typing import Any
 
 from trust_engine_mcp.data import DataSource, Settings
-from trust_engine_mcp.tools import ToolFailure, TrustEngineTools
+from trust_engine_mcp.tools import ToolFailure, TrustEngineTools, with_ref
 
 try:  # mcp >= 2
     from mcp.server.mcpserver import MCPServer
@@ -31,7 +34,20 @@ INSTRUCTIONS = (
     "so much (analyze_usage on a usage/cost export, analysed locally, never uploaded); is a cheaper model good "
     "enough (benchmark_results, estimate_switch_savings for measured pairs only, then a free pilot via "
     "prepare_pilot_tasks and request_pilot, which drafts an e-mail for the human to send). Every retirement date "
-    "comes with its official source URL; cite it."
+    "comes with its official source URL; cite it. To find which models a codebase uses, call scan_for_models "
+    "(local, read-only) instead of grepping."
+)
+
+
+SCAN_DESCRIPTION = (
+    "Find every AI model id used in this codebase (OpenAI, Anthropic, Gemini, Bedrock, Mistral) and tell which ones "
+    "are being retired or deprecated, by when, on which platform, and the vendor's replacement, with the source "
+    'link. Use it before upgrading dependencies, when a model call starts failing, or when asked "are we using any '
+    'deprecated models?". Read-only and local.\n\n'
+    "Inputs: path (optional, a file or folder inside the current working directory; default: the working "
+    "directory) or texts (a list of {name, content} you already have). Limits: 2,000 files / 5 MB. Skips .git, "
+    "node_modules, virtualenvs, dist, build, lockfiles and binaries; never opens .env files (reports them by name). "
+    "Returns file:line for each model found and the check_my_models result for those models."
 )
 
 
@@ -40,16 +56,21 @@ def build_server(tools: TrustEngineTools) -> Any:
 
     def wrap(fn: Callable[..., dict[str, Any]], *args: Any, **kwargs: Any) -> dict[str, Any]:
         try:
-            return fn(*args, **kwargs)
+            return with_ref(fn(*args, **kwargs), tools.channel)
         except ToolFailure as exc:
             raise ToolError(str(exc)) from None
+
+    @server.tool(description=SCAN_DESCRIPTION)
+    def scan_for_models(path: str | None = None, texts: list[dict[str, str]] | None = None) -> dict[str, Any]:
+        return wrap(tools.scan_for_models, path, texts)
 
     @server.tool()
     def check_my_models(models: list[str]) -> dict[str, Any]:
         """Use when an agent or its owner asks "will the models we use be retired?" or before choosing a model.
         Pass every model id or name the agent uses (e.g. ["claude-sonnet-4-5", "gpt-4o", "gemini-2.5-flash",
         "anthropic.claude-3-haiku-20240307-v1:0"]). For each: retirement date per platform, days left, the vendor's
-        replacement, the official source URL, and a next step ("re-test before <date>"). Free, read-only."""
+        replacement, the official source URL, and what to do before the date. To find the models in a codebase
+        first, use scan_for_models. Free, read-only."""
         return wrap(tools.check_my_models, models)
 
     @server.tool()
@@ -134,7 +155,12 @@ def build_server(tools: TrustEngineTools) -> Any:
     return server
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    args = sys.argv[1:] if argv is None else argv
+    if args and args[0] == "check":
+        from trust_engine_mcp import cli
+
+        raise SystemExit(cli.main(args[1:]))
     build_server(TrustEngineTools(DataSource(Settings.from_env()))).run()
 
 

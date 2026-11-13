@@ -1,7 +1,8 @@
 """Public data from agenttrustapi.com: fetched with GET, cached in memory, bundled snapshot as fallback.
 
 The only network calls this package makes are GETs of the two JSON files below, from ``TRUST_ENGINE_BASE_URL``
-(default ``https://agenttrustapi.com``). No telemetry, no keys, no uploads.
+(default ``https://agenttrustapi.com``), with the User-Agent ``trust-engine-mcp/<version> (mcp|cli|action)``.
+No telemetry beyond that, no keys, no uploads.
 """
 
 from __future__ import annotations
@@ -16,6 +17,8 @@ from typing import Any
 
 import httpx
 
+from trust_engine_mcp import __version__
+
 BASE_URL_ENV = "TRUST_ENGINE_BASE_URL"
 OFFLINE_ENV = "TRUST_ENGINE_OFFLINE"  # "1": never fetch, use the bundled snapshot only
 DEFAULT_BASE_URL = "https://agenttrustapi.com"
@@ -28,7 +31,13 @@ BENCHMARK_PATH = "/benchmarks/aider-model-diet.json"
 TEMPLATE_PATH = "/pilot/tasks_template.csv"
 SNAPSHOTS = {RETIREMENTS_PATH: "retirements.json", BENCHMARK_PATH: "aider-model-diet.json"}
 
+CHANNELS = ("mcp", "cli", "action")  # how the package was run; sent only in the User-Agent and in ref= links
+
 ClientFactory = Callable[[], httpx.Client]
+
+
+def user_agent(channel: str) -> str:
+    return f"trust-engine-mcp/{__version__} ({channel if channel in CHANNELS else 'mcp'})"
 
 
 def bundled_text(name: str) -> str:
@@ -39,12 +48,14 @@ def bundled_text(name: str) -> str:
 class Settings:
     base_url: str = DEFAULT_BASE_URL
     offline: bool = False
+    channel: str = "mcp"
 
     @classmethod
-    def from_env(cls) -> Settings:
+    def from_env(cls, channel: str = "mcp") -> Settings:
         return cls(
             base_url=(os.environ.get(BASE_URL_ENV) or DEFAULT_BASE_URL).rstrip("/"),
             offline=(os.environ.get(OFFLINE_ENV) or "").strip() in ("1", "true", "yes"),
+            channel=channel,
         )
 
 
@@ -63,7 +74,7 @@ class DataSource:
                 base_url=settings.base_url,
                 timeout=TIMEOUT_SECONDS,
                 follow_redirects=False,
-                headers={"User-Agent": "trust-engine-mcp", "Accept": "application/json"},
+                headers={"User-Agent": user_agent(settings.channel), "Accept": "application/json"},
             )
         )
         self._clock = clock

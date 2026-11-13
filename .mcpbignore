@@ -8,3 +8,4 @@ tests/
 .ruff_cache/
 dist/
 *.mcpb
+check/
