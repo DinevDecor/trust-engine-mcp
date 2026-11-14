@@ -31,7 +31,7 @@ runs:
         TE_PATH: ${{ inputs.path }}
         TE_DAYS: ${{ inputs.days }}
         TE_FAIL: ${{ inputs.fail-on-retiring }}
-        TE_VERSION: "0.2.0"
+        TE_VERSION: "0.2.1"
         PIPX_DEFAULT_PYTHON: ${{ steps.python.outputs.python-path }}
       run: |
         set +e
