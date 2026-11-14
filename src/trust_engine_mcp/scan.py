@@ -45,6 +45,41 @@ SKIP_DIRS = frozenset(
 LOCKFILES = frozenset({"package-lock.json", "yarn.lock", "pnpm-lock.yaml", "poetry.lock", "uv.lock", "Cargo.lock"})
 ENV_TEMPLATES = frozenset({".env.example", ".env.sample", ".env.template"})
 BINARY_SNIFF = 8192
+# Scan order: code and config first, prose next, everything else last, so that when a large repo hits the byte budget
+# the files that hold model ids have already been read (matchbox case, 14.11: docs used the budget before config).
+CODE_SUFFIXES = frozenset(
+    {
+        ".py",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs",
+        ".java",
+        ".kt",
+        ".go",
+        ".rs",
+        ".rb",
+        ".php",
+        ".cs",
+        ".swift",
+        ".scala",
+        ".sh",
+        ".ps1",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".ini",
+        ".cfg",
+        ".conf",
+        ".properties",
+        ".env",
+        ".json",
+        ".tf",
+    }
+)
+PROSE_SUFFIXES = frozenset({".md", ".mdx", ".rst", ".txt", ".adoc", ".html", ".htm"})
 
 _SUFFIX = re.compile(r"(-\d{8}|-\d{4}-\d{2}-\d{2}|-\d{2}-\d{4}|-\d{3}|@\d{3})?(-v\d+(:\d+)?)?$")
 _SPECIFIC = re.compile(r"[a-z]{3}.*[-.]|[-.].*[a-z]{3}")
@@ -136,6 +171,13 @@ def resolve_inside(path: str | None, base: Path) -> Path:
     return target
 
 
+def scan_priority(p: Path) -> tuple[int, str]:
+    """Code/config first, prose second, the rest last; stable by path inside each group."""
+    suffix = p.suffix.lower()
+    group = 0 if suffix in CODE_SUFFIXES or p.name.startswith(".env.") else 1 if suffix in PROSE_SUFFIXES else 2
+    return (group, p.as_posix())
+
+
 def scan_path(rx: re.Pattern[str], target: Path, base: Path) -> ScanResult:
     """Walk ``target`` (a file or folder inside ``base``); locations are relative to ``base``."""
     base = base.resolve()
@@ -151,10 +193,11 @@ def scan_path(rx: re.Pattern[str], target: Path, base: Path) -> ScanResult:
         if target.is_file():
             yield target
             return
+        found: list[Path] = []
         for dirpath, dirnames, filenames in os.walk(target, followlinks=False):
             dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
-            for f in sorted(filenames):
-                yield Path(dirpath) / f
+            found.extend(Path(dirpath) / f for f in sorted(filenames))
+        yield from sorted(found, key=scan_priority)
 
     for p in files():
         name = p.name

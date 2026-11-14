@@ -422,7 +422,7 @@ def test_user_agent_per_channel():
         src = dm.DataSource(dm.Settings(channel=ch))
         with src._client_factory() as c:
             assert c.headers["User-Agent"] == f"trust-engine-mcp/{__version__} ({ch})"
-    assert __version__ == "0.2.1"
+    assert __version__ == "0.2.2"
 
 
 def test_ref_added_to_every_site_link():
@@ -554,3 +554,17 @@ def test_scan_skips_large_file_and_keeps_going(tmp_path, monkeypatch):
     assert r["scanned"]["complete"] is True
     assert r["scanned"]["skipped_large_files"] == 1 and r["scanned"]["skipped_large_examples"] == ["a_data/dump.json"]
     assert [f["model"] for f in r["found"]] == ["claude-sonnet-4-5"]
+
+
+def test_scan_reads_config_before_prose_under_budget(tmp_path, monkeypatch):
+    # v0.2.2: with a tight budget the config file holding the model id is read before big docs (matchbox case, 14.11)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "aaa-docs").mkdir()
+    (tmp_path / "aaa-docs" / "guide.md").write_text("y" * 80)
+    (tmp_path / "zzz-server").mkdir()
+    (tmp_path / "zzz-server" / "application.yaml").write_text("model: gpt-4o-mini\n")
+    monkeypatch.setattr(sc, "MAX_BYTES", 40)
+    t, _ = make()
+    r = t.scan_for_models()
+    assert [f["model"] for f in r["found"]] == ["gpt-4o-mini"]
+    assert r["scanned"]["complete"] is False  # the docs did not fit, and that is reported
