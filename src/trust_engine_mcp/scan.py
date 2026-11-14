@@ -24,8 +24,23 @@ MAX_BYTES = 50 * 1024 * 1024
 MAX_FILE_BYTES = 1024 * 1024  # a single larger file (data dump, bundle, fixture) is skipped and reported, not read
 MAX_LOCATIONS = 50  # per model in the answer; the full count is reported
 SKIP_DIRS = frozenset(
-    {".git", "node_modules", "venv", ".venv", "dist", "build", "__pycache__", ".next", ".nuxt", "coverage", ".cache",
-     ".tox", ".mypy_cache", ".pytest_cache", "target"}
+    {
+        ".git",
+        "node_modules",
+        "venv",
+        ".venv",
+        "dist",
+        "build",
+        "__pycache__",
+        ".next",
+        ".nuxt",
+        "coverage",
+        ".cache",
+        ".tox",
+        ".mypy_cache",
+        ".pytest_cache",
+        "target",
+    }
 )
 LOCKFILES = frozenset({"package-lock.json", "yarn.lock", "pnpm-lock.yaml", "poetry.lock", "uv.lock", "Cargo.lock"})
 ENV_TEMPLATES = frozenset({".env.example", ".env.sample", ".env.template"})
