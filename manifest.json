@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "trust-engine-mcp",
   "display_name": "Trust Engine AI: model retirements and agent cost",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Free, read-only tools for AI agents: finds the model ids in your code and their retirement dates with official sources, a public cost-vs-quality benchmark, a local check of usage/cost exports, and a free pilot request.",
   "long_description": "Answers without web searching: which models your agent uses are being retired and when (Anthropic, OpenAI, Google Gemini API and Vertex AI, AWS Bedrock, Mistral; every date with its official source), what Trust Engine AI's public Aider benchmark measured (Claude Opus vs Sonnet vs Haiku 5.5, cost per solved task, raw data), why agents cost too much (usage exports analysed locally, never uploaded), and how to prepare and request a free pilot on your own tasks (drafts an e-mail; sends nothing). No key, no telemetry; only GET requests to agenttrustapi.com.",
   "author": {

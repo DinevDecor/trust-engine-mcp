@@ -19,10 +19,14 @@ from typing import Any
 
 from trust_engine_mcp import models as mm
 
-MAX_FILES = 2000
-MAX_BYTES = 5 * 1024 * 1024
+MAX_FILES = 20000
+MAX_BYTES = 50 * 1024 * 1024
+MAX_FILE_BYTES = 1024 * 1024  # a single larger file (data dump, bundle, fixture) is skipped and reported, not read
 MAX_LOCATIONS = 50  # per model in the answer; the full count is reported
-SKIP_DIRS = frozenset({".git", "node_modules", "venv", ".venv", "dist", "build", "__pycache__"})
+SKIP_DIRS = frozenset(
+    {".git", "node_modules", "venv", ".venv", "dist", "build", "__pycache__", ".next", ".nuxt", "coverage", ".cache",
+     ".tox", ".mypy_cache", ".pytest_cache", "target"}
+)
 LOCKFILES = frozenset({"package-lock.json", "yarn.lock", "pnpm-lock.yaml", "poetry.lock", "uv.lock", "Cargo.lock"})
 ENV_TEMPLATES = frozenset({".env.example", ".env.sample", ".env.template"})
 BINARY_SNIFF = 8192
@@ -74,6 +78,7 @@ class ScanResult:
     bytes_scanned: int = 0
     skipped_env_files: list[str] = field(default_factory=list)
     skipped_binary: int = 0
+    skipped_large: list[str] = field(default_factory=list)
     skipped_other: int = 0
     limits_hit: list[str] = field(default_factory=list)
 
@@ -94,6 +99,8 @@ class ScanResult:
             "bytes_scanned": self.bytes_scanned,
             "skipped_env_files_not_read": self.skipped_env_files,
             "skipped_binary_files": self.skipped_binary,
+            "skipped_large_files": len(self.skipped_large),
+            "skipped_large_examples": self.skipped_large[:10],
             "skipped_other_files": self.skipped_other,
             "limits_hit": self.limits_hit,
             "complete": not self.limits_hit,
@@ -149,6 +156,9 @@ def scan_path(rx: re.Pattern[str], target: Path, base: Path) -> ScanResult:
             size = p.stat().st_size
         except OSError:
             res.skipped_other += 1
+            continue
+        if size > MAX_FILE_BYTES:
+            res.skipped_large.append(rel(p))
             continue
         if res.bytes_scanned + size > MAX_BYTES:
             res.limits_hit.append(f"stopped at the {MAX_BYTES // (1024 * 1024)} MB limit; results are partial")

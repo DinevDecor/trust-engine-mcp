@@ -422,7 +422,7 @@ def test_user_agent_per_channel():
         src = dm.DataSource(dm.Settings(channel=ch))
         with src._client_factory() as c:
             assert c.headers["User-Agent"] == f"trust-engine-mcp/{__version__} ({ch})"
-    assert __version__ == "0.2.0"
+    assert __version__ == "0.2.1"
 
 
 def test_ref_added_to_every_site_link():
@@ -539,3 +539,18 @@ def test_entry_point_dispatch(monkeypatch, repo):
     monkeypatch.setattr(ms, "build_server", lambda t: type("S", (), {"run": lambda self: started.append(1)})())
     ms.main([])
     assert started == [1]
+
+
+def test_scan_skips_large_file_and_keeps_going(tmp_path, monkeypatch):
+    # v0.2.1: one big file early in the walk must not stop the scan before the source tree (gitlens case, 14.11)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "a_data").mkdir()
+    (tmp_path / "a_data" / "dump.json").write_text("x" * 200)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "models.ts").write_text("const m = 'claude-sonnet-4-5';\n")
+    monkeypatch.setattr(sc, "MAX_FILE_BYTES", 100)
+    t, _ = make()
+    r = t.scan_for_models()
+    assert r["scanned"]["complete"] is True
+    assert r["scanned"]["skipped_large_files"] == 1 and r["scanned"]["skipped_large_examples"] == ["a_data/dump.json"]
+    assert [f["model"] for f in r["found"]] == ["claude-sonnet-4-5"]
