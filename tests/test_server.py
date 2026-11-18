@@ -295,6 +295,7 @@ def test_server_lists_all_tools():
         "request_pilot",
         "pricing",
         "scan_for_models",
+        "check_payment",
     }
 
 

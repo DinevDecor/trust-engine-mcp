@@ -2,7 +2,8 @@
 
 The only network calls this package makes are GETs of the two JSON files below, from ``TRUST_ENGINE_BASE_URL``
 (default ``https://agenttrustapi.com``), with the User-Agent ``trust-engine-mcp/<version> (mcp|cli|action)``.
-No telemetry beyond that, no keys, no uploads.
+No telemetry beyond that, no keys, no uploads. Exception (unreleased): the ``check_payment`` tool POSTs the
+payment it is asked about to AgentTrustAPI, only when called (see ``payment_check.py``).
 """
 
 from __future__ import annotations

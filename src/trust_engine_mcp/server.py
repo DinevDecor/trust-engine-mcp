@@ -8,6 +8,8 @@ usage export, analysed locally); how to prepare and request a free pilot; what t
 
 Network: only GET https://agenttrustapi.com/retirements.json and /benchmarks/aider-model-diet.json
 (``TRUST_ENGINE_BASE_URL`` to override), 10 s timeout, cached for 6 hours, bundled snapshot as fallback.
+Unreleased: ``check_payment`` sends one POST to https://api.agenttrustapi.com/v1/authority/payment/match
+(``TRUST_ENGINE_API_BASE_URL`` to override) only when an agent calls it; see ``payment_check.py``.
 No telemetry, no keys, no uploads; nothing is sent by e-mail.
 """
 
@@ -35,7 +37,9 @@ INSTRUCTIONS = (
     "enough (benchmark_results, estimate_switch_savings for measured pairs only, then a free pilot via "
     "prepare_pilot_tasks and request_pilot, which drafts an e-mail for the human to send). Every retirement date "
     "comes with its official source URL; cite it. To find which models a codebase uses, call scan_for_models "
-    "(local, read-only) instead of grepping."
+    "(local, read-only) instead of grepping. Before an agent pays, check_payment asks Agent Trust API whether its "
+    "delegated authority covers exactly that payment (paid via x402 by the agent's own wallet; this server pays "
+    "nothing)."
 )
 
 
@@ -48,6 +52,24 @@ SCAN_DESCRIPTION = (
     "directory) or texts (a list of {name, content} you already have). Limits: 2,000 files / 5 MB. Skips .git, "
     "node_modules, virtualenvs, dist, build, lockfiles and binaries; never opens .env files (reports them by name). "
     "Returns file:line for each model found and the check_my_models result for those models."
+)
+
+
+CHECK_PAYMENT_DESCRIPTION = (
+    "Before your agent pays (x402, stablecoin or any delegated payment), ask Agent Trust API: may this agent make "
+    "exactly this payment? Returns verdict ALLOW, REVIEW or BLOCK with reason codes; pay_now is true only for "
+    "ALLOW. The verdict is projected from the API's matched true/false answer (ALLOW = the delegated authority "
+    "covers exactly this payment; BLOCK = it does not, or the evidence is invalid; REVIEW = no complete answer). "
+    "It checks authority only, not the payee, the asset or the payment itself.\n\n"
+    "Inputs: evidence = the normalized authority-evidence/v1 object (with evidence_id) from your authority "
+    "adapter, passed unchanged; resource = the payee/resource the payment goes to; amount = decimal string, e.g. "
+    '"10.00"; asset, e.g. "USDC"; network, e.g. "eip155:8453"; optional bindings [{kind, value}], '
+    "additional_constraints [{name, value}], agent_id (must equal evidence.subject_agent.identifier, otherwise "
+    "BLOCK without a call).\n\n"
+    "Paid: each check costs 0.01 USDC on Base via x402. This tool holds no key and pays nothing. The first call "
+    "returns status payment_required with the x402 requirements (network, asset, amount, payTo); if your owner "
+    "allows it, pay with your own wallet and call again with payment_signature (the base64 PAYMENT-SIGNATURE "
+    "value), which is sent only as that header and never stored or returned."
 )
 
 
@@ -144,6 +166,31 @@ def build_server(tools: TrustEngineTools) -> Any:
         human owner to review and send. Sends nothing itself. The task file (see prepare_pilot_tasks) goes only
         after Trust Engine AI replies."""
         return wrap(tools.request_pilot, company, use_case, models, task_count, monthly_bill_usd, notes)
+
+    @server.tool(description=CHECK_PAYMENT_DESCRIPTION)
+    def check_payment(
+        evidence: dict[str, Any],
+        resource: str,
+        amount: str,
+        asset: str,
+        network: str,
+        bindings: list[dict[str, str]] | None = None,
+        additional_constraints: list[dict[str, str]] | None = None,
+        agent_id: str | None = None,
+        payment_signature: str | None = None,
+    ) -> dict[str, Any]:
+        return wrap(
+            tools.check_payment,
+            evidence,
+            resource,
+            amount,
+            asset,
+            network,
+            bindings,
+            additional_constraints,
+            agent_id,
+            payment_signature,
+        )
 
     @server.tool()
     def pricing() -> dict[str, Any]:

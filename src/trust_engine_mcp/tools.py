@@ -11,6 +11,7 @@ from typing import Any
 from trust_engine_mcp import models as mm
 from trust_engine_mcp import pilot, scan, usage
 from trust_engine_mcp.data import BENCHMARK_PATH, CHANNELS, RETIREMENTS_PATH, DataSource
+from trust_engine_mcp.payment_check import PaymentChecker, PaymentCheckInputError
 
 SEVEN_DAY_TEST_URL = "https://agenttrustapi.com/seven-day-test/"
 _SITE_URL = re.compile(r"https://agenttrustapi\.com(?:/[^\s\"'<>()\[\]{}]*)?")
@@ -158,12 +159,48 @@ class ToolFailure(Exception):
 
 
 class TrustEngineTools:
-    def __init__(self, source: DataSource, today: Callable[[], date] | None = None) -> None:
+    def __init__(
+        self,
+        source: DataSource,
+        today: Callable[[], date] | None = None,
+        payments: PaymentChecker | None = None,
+    ) -> None:
         self.source = source
         self._today = today or (lambda: datetime.now(timezone.utc).date())
         ch = getattr(source.settings, "channel", "mcp")
         self.channel = ch if ch in CHANNELS else "mcp"
         self._matcher: tuple[int, re.Pattern[str]] | None = None
+        self._payments = payments
+
+    # --- payment authority check (unreleased, pending owner decision 22.11) ------------------------------------
+    def check_payment(
+        self,
+        evidence: Any,
+        resource: Any,
+        amount: Any,
+        asset: Any,
+        network: Any,
+        bindings: Any = None,
+        additional_constraints: Any = None,
+        agent_id: Any = None,
+        payment_signature: Any = None,
+    ) -> dict[str, Any]:
+        if self._payments is None:
+            self._payments = PaymentChecker(channel=self.channel, offline=self.source.settings.offline)
+        try:
+            return self._payments.check_payment(
+                evidence,
+                resource,
+                amount,
+                asset,
+                network,
+                bindings,
+                additional_constraints,
+                agent_id,
+                payment_signature,
+            )
+        except PaymentCheckInputError as exc:
+            raise ToolFailure(f"check_payment: {exc}") from None
 
     # --- retirements -------------------------------------------------------------------------------------------
     def _calendar(self) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any]]:

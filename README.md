@@ -12,7 +12,8 @@ Free MCP server from [Trust Engine AI](https://agenttrustapi.com). It answers qu
 - **Is a cheaper model good enough?** You get our public benchmark numbers, a savings estimate for the model pairs we
   measured, and a ready request for a free pilot on your own tasks.
 
-Read-only. No key, no account, no telemetry. The server only sends GET requests to `agenttrustapi.com`, with the
+Read-only. No key, no account, no telemetry. The server only sends GET requests to `agenttrustapi.com` (the
+unreleased `check_payment` below also sends one POST to `api.agenttrustapi.com` when an agent calls it), with the
 User-Agent `trust-engine-mcp/<version> (mcp|cli|action)` so we can count use per channel; links to agenttrustapi.com
 in answers carry `?ref=mcp`, `?ref=cli` or `?ref=action` for the same reason. Nothing else is recorded or sent.
 
@@ -76,6 +77,41 @@ What the scan does not see: model ids built at runtime (from environment variabl
 that are not on the calendar, and ids written in a form the calendar does not list. Aliases such as `gpt-4.1` match
 the dated snapshot on the calendar (`gpt-4.1-2025-04-14`); the answer says so, because an alias can point to a newer
 snapshot.
+
+## `check_payment` — unreleased (pending owner decision 22.11)
+
+> Not on PyPI or the MCP registry. This section describes a branch only; the release is decided on 22.11.
+
+Before an agent pays, `check_payment` asks [Agent Trust API](https://agenttrustapi.com) one question: **may this agent
+make exactly this payment?** It sends one `POST https://api.agenttrustapi.com/v1/authority/payment/match` with a
+`payment-authority-match-input/v1` body and returns:
+
+| Field | Meaning |
+|---|---|
+| `verdict` | `ALLOW` (the delegated authority covers exactly this payment), `BLOCK` (it does not, the evidence is invalid, or `agent_id` is not the authority's subject), `REVIEW` (no complete answer: payment required, timeout, network error, unexpected response, offline mode) |
+| `pay_now` | `true` only for `ALLOW` |
+| `reasons` | reason codes, e.g. `AUTHORITY_MATCHED`, `AUTHORITY_NOT_MATCHED`, `REQUEST_CONSTRAINT_LIMIT_EXCEEDED`, `EVIDENCE_EXPIRED`, `PAYMENT_REQUIRED_FOR_CHECK` |
+| `api_result` | the API's `payment-authority-profile/v1` answer, unchanged |
+| `payment_required` | on HTTP 402: the x402 v2 requirements (`scheme`, `network`, `asset`, `amount`, `pay_to`, `max_timeout_seconds`) |
+
+Inputs: `evidence` (the normalized `authority-evidence/v1` object with its `evidence_id`, from your authority adapter,
+passed unchanged), `resource` (payee/resource), `amount` (decimal string such as `"10.00"`), `asset`, `network`
+(e.g. `eip155:8453`), optional `bindings` `[{kind, value}]`, `additional_constraints` `[{name, value}]`, `agent_id`
+and `payment_signature`.
+
+**Paid, and this server pays nothing.** Each check costs 0.01 USDC (10000 atomic USDC on Base, `eip155:8453`) via
+x402. The tool holds no key. The first call returns `status: payment_required` with the requirements; if the owner
+allows it, the agent pays with its own wallet and calls again with `payment_signature` (the base64
+`PAYMENT-SIGNATURE` value). The signature is sent only as that header and is never logged, stored or returned.
+Invalid evidence (HTTP 422) is not charged.
+
+**What the verdict is.** The endpoint returns `matched: true/false` with reason codes; it does not emit
+ALLOW/REVIEW/BLOCK. This tool projects the verdict with the authority rule of Agent Trust API's payment preflight
+(ATA-016) and says so in `verdict_source`. It checks the delegated authority only: not raw credentials, the payee,
+the asset or the payment itself; no legal guarantee, no insurance.
+
+With `TRUST_ENGINE_OFFLINE=1` it sends nothing and returns `REVIEW`. `TRUST_ENGINE_API_BASE_URL` overrides the API
+host (default `https://api.agenttrustapi.com`) for testing.
 
 ## Check a repository without an agent
 
@@ -145,6 +181,7 @@ the site is unreachable, the server uses that snapshot and says so in every answ
 |---|---|---|
 | `TRUST_ENGINE_OFFLINE` | `0` | `1`: never fetch; use the bundled snapshot only |
 | `TRUST_ENGINE_BASE_URL` | `https://agenttrustapi.com` | data host (for testing against a local copy) |
+| `TRUST_ENGINE_API_BASE_URL` | `https://api.agenttrustapi.com` | API host for `check_payment` (unreleased) |
 
 ## Development
 
